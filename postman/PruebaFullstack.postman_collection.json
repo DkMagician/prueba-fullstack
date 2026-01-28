@@ -1,0 +1,169 @@
+{
+  "info": {
+    "name": "Prueba Full-Stack (FastAPI + Redis/RQ + WS)",
+    "_postman_id": "9c6f8b2a-4e8b-4d7c-9c8b-1a2b3c4d5e6f",
+    "description": "Colección para probar endpoints de Transactions y Summaries (idempotencia + async + realtime).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [{ "key": "baseUrl", "value": "http://127.0.0.1:8000" }],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('health ok', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const j = pm.response.json();",
+                  "  pm.expect(j.ok).to.eql(true);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Transactions",
+      "item": [
+        {
+          "name": "GET /transactions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/transactions"
+          }
+        },
+        {
+          "name": "POST /transactions/create (idempotent)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "pm-tx-create-1" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"user_id\":\"u1\",\"monto\":123.45,\"tipo\":\"pago\"}"
+            },
+            "url": "{{baseUrl}}/transactions/create"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('create returns transaction', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const j = pm.response.json();",
+                  "  pm.expect(j).to.have.property('id');",
+                  "  pm.collectionVariables.set('last_tx_id', j.id);",
+                  "  pm.collectionVariables.set('last_tx_key', j.idempotency_key);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /transactions/async-process (pending -> processed)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "pm-tx-async-1" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"user_id\":\"u2\",\"monto\":42.42,\"tipo\":\"pago\"}"
+            },
+            "url": "{{baseUrl}}/transactions/async-process?fail=false"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('async-process returns pending transaction', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const j = pm.response.json();",
+                  "  pm.expect(j).to.have.property('id');",
+                  "  pm.collectionVariables.set('last_tx_id', j.id);",
+                  "  pm.collectionVariables.set('last_tx_key', j.idempotency_key);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Summaries",
+      "item": [
+        {
+          "name": "GET /summaries",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/summaries"
+          }
+        },
+        {
+          "name": "POST /summaries/async (pending -> processed)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "pm-sum-async-1" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"source\":\"manual\",\"text\":\"Texto de prueba para summary async.\"}"
+            },
+            "url": "{{baseUrl}}/summaries/async?fail=false"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('summary async returns pending', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const j = pm.response.json();",
+                  "  pm.expect(j).to.have.property('id');",
+                  "  pm.collectionVariables.set('last_summary_id', j.id);",
+                  "  pm.collectionVariables.set('last_summary_key', j.idempotency_key);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /summaries/{id} (use last_summary_id)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/summaries/{{last_summary_id}}"
+          }
+        }
+      ]
+    }
+  ]
+}
